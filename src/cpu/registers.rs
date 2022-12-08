@@ -84,7 +84,7 @@ impl BitOr for SetFlags {
             zero,
             substract,
             half_carry,
-            carry
+            carry,
         }
     }
 }
@@ -152,6 +152,7 @@ impl Registers {
         Register::F,
         Register::A,
     ];
+
     pub const LONG_REGISTERS: [LongRegister; 4] = [
         LongRegister::BC,
         LongRegister::DE,
@@ -224,7 +225,7 @@ impl Registers {
 
     pub fn set_flags(&mut self, flags: SetFlags) {
         let flags: u8 = flags.into();
-        self.af.set_low(flags); 
+        self.af.set_low(flags);
     }
 
     pub fn get_flag(&self, flag: Flags) -> bool {

@@ -215,18 +215,14 @@ impl LoadInstruction {
         }
         lr
     }
-    
+
     fn add_delta_to_addr(addr: u16, delta: i8) -> (u16, SetFlags) {
         let neg = delta.is_negative();
         let [delta_byte] = i8::to_be_bytes(delta);
         let delta_byte: u16 = delta_byte.into();
         let [delta] = i8::to_be_bytes(delta.abs());
         let delta: u16 = delta.into();
-        let result = if neg {
-            addr - delta
-        } else {
-            addr + delta
-        };
+        let result = if neg { addr - delta } else { addr + delta };
 
         let carry = (addr ^ delta_byte ^ result) & 0x0100 == 0x0100;
         let half_carry = (addr ^ delta_byte ^ result) & 0x0010 == 0x0010;
@@ -259,7 +255,7 @@ impl LoadInstruction {
             0xF8 => {
                 let byte = cpu.advance();
                 Some(LoadFromSPPlusnIntoHL(i8::from_be_bytes([byte])))
-            },
+            }
             0xFA => Some(LoadIntoAFromAddrnn(cpu.advance_long())),
             x if x & 0b11001111 == 0x0A => Some(LoadIntoAFromAddr(Self::fetch_long_register(x))),
             x if x & 0b11001111 == 0x02 => Some(LoadIntoAddrFromA(Self::fetch_long_register(x))),
@@ -278,88 +274,88 @@ impl LoadInstruction {
         match self {
             LoadInstruction::LoadImmediate(reg, n) => {
                 cpu.put_reg(reg, n);
-            },
+            }
             LoadInstruction::LoadRegister(r1, r2) => {
                 cpu.put_reg(r1, cpu.get_reg(r2));
-            },
+            }
             LoadInstruction::LoadFromHLAddr(reg) => {
                 let value = cpu.get_at_hl();
                 cpu.put_reg(reg, value);
-            },
+            }
             LoadInstruction::LoadIntoHLAddr(reg) => {
                 let value = cpu.get_reg(reg);
                 cpu.put_at_hl(value);
-            },
+            }
             LoadInstruction::LoadIntoHLAddrn(n) => {
                 cpu.put_at_hl(n);
-            },
+            }
             LoadInstruction::LoadIntoAFromAddr(lr) => {
                 let addr = cpu.get_long_reg(lr);
                 let value = cpu.get_memory(addr);
                 cpu.put_reg(Register::A, value);
-            },
+            }
             LoadInstruction::LoadIntoAFromAddrnn(addr) => {
                 let value = cpu.get_memory(addr);
                 cpu.put_reg(Register::A, value);
-            },
+            }
             LoadInstruction::LoadIntoAddrFromA(lr) => {
                 let addr = cpu.get_long_reg(lr);
                 let value = cpu.get_reg_a();
                 cpu.put_memory(addr, value);
-            },
+            }
             LoadInstruction::LoadIntoAddrnnFromA(addr) => {
                 let value = cpu.get_reg_a();
                 cpu.put_memory(addr, value);
-            },
+            }
             LoadInstruction::LoadFromAddrCIntoA => {
                 let c_reg = cpu.get_reg(Register::C);
                 let addr = u16::from_be_bytes([0xFF, c_reg]);
                 let value = cpu.get_memory(addr);
                 cpu.put_reg_a(value);
-            },
+            }
             LoadInstruction::LoadIntoAddrCFromA => {
                 let c_reg = cpu.get_reg(Register::C);
                 let addr = u16::from_be_bytes([0xFF, c_reg]);
                 let value = cpu.get_reg_a();
                 cpu.put_memory(addr, value);
-            },
+            }
             LoadInstruction::LoadFromAddrHLIntoADec => {
                 let addr = cpu.get_long_reg(LongRegister::HL);
                 let value = cpu.get_memory(addr);
                 cpu.put_reg_a(value);
                 cpu.put_long_reg(LongRegister::HL, addr - 1);
-            },
+            }
             LoadInstruction::LoadFromAIntoAddrHLDec => {
                 let addr = cpu.get_long_reg(LongRegister::HL);
                 let value = cpu.get_reg_a();
                 cpu.put_memory(addr, value);
                 cpu.put_long_reg(LongRegister::HL, addr - 1);
-            },
+            }
             LoadInstruction::LoadFromAddrHLIntoAInc => {
                 let addr = cpu.get_long_reg(LongRegister::HL);
                 let value = cpu.get_memory(addr);
                 cpu.put_reg_a(value);
                 cpu.put_long_reg(LongRegister::HL, addr + 1);
-            },
+            }
             LoadInstruction::LoadFromAIntoAddrHLInc => {
                 let addr = cpu.get_long_reg(LongRegister::HL);
                 let value = cpu.get_reg_a();
                 cpu.put_memory(addr, value);
                 cpu.put_long_reg(LongRegister::HL, addr + 1);
-            },
+            }
             LoadInstruction::LoadFromAIntoAddrn(n) => {
                 let addr = u16::from_be_bytes([0xFF, n]);
                 let value = cpu.get_reg_a();
                 cpu.put_memory(addr, value);
-            },
+            }
             LoadInstruction::LoadFromAddrnIntoA(n) => {
                 let addr = u16::from_be_bytes([0xFF, n]);
                 let value = cpu.get_memory(addr);
                 cpu.put_reg_a(value);
-            },
+            }
             LoadInstruction::LoadImmediateLong(reg, value) => {
                 cpu.put_long_reg(reg, value);
-            },
+            }
             LoadInstruction::LoadFromHLIntoSP => {
                 // 2 machine cycle but only one W/R, so need to explicitly cycle
                 cpu.cycle();
@@ -371,21 +367,21 @@ impl LoadInstruction {
                 let (value, flags) = Self::add_delta_to_addr(sp, delta);
                 cpu.set_flags(flags);
                 cpu.put_long_reg(LongRegister::HL, value);
-            },
+            }
             LoadInstruction::LoadSPIntoAddrnn(addr) => {
                 let value = cpu.get_long_reg(LongRegister::SP);
                 cpu.put_long_at(addr, value);
-            },
+            }
             LoadInstruction::Push(long_reg) => {
                 // 4 machine cycle but only 3 W/R, so need to explicitly cycle
                 cpu.cycle();
                 let value = cpu.get_long_reg(long_reg);
                 cpu.push_stack(value);
-            },
+            }
             LoadInstruction::Pop(long_reg) => {
                 let value = cpu.pop_stack();
                 cpu.put_long_reg(long_reg, value);
-            },
+            }
         }
     }
 }

@@ -1,9 +1,5 @@
-
 #[derive(Debug, Default)]
-pub struct Cyclic {
-
-}
-
+pub struct Cyclic {}
 
 impl Cyclic {
     pub fn cycle(&mut self) {

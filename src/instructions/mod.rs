@@ -127,10 +127,7 @@ mod tests {
             }
             let instruction = Instruction::fetch(&mut cpu);
             if let Some(inst) = instruction {
-                println!(
-                    "{:?}",
-                    inst,
-                );
+                println!("{:?}", inst,);
             } else {
                 println!("Unknown");
             }
@@ -140,10 +137,7 @@ mod tests {
             print!("CB {:#X} : ", cpu.get_relative(1));
             let instruction = Instruction::fetch(&mut cpu);
             if let Some(inst) = instruction {
-                println!(
-                    "{:?}",
-                    inst,
-                );
+                println!("{:?}", inst,);
             } else {
                 println!("Unknown");
             }
@@ -151,10 +145,7 @@ mod tests {
 
         print!("0x10 0x00 : ");
         if let Some(inst) = Instruction::fetch(&mut cpu) {
-            println!(
-                "{:?}",
-                inst,
-            );
+            println!("{:?}", inst,);
         } else {
             println!("Unknown");
         }

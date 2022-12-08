@@ -1,4 +1,7 @@
-use crate::cpu::{registers::{Register, SetFlags, Flags}, Cpu};
+use crate::cpu::{
+    registers::{Flags, Register, SetFlags},
+    Cpu,
+};
 
 use super::FetchRegister;
 
@@ -44,7 +47,6 @@ impl TargetBit {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitInstruction {
@@ -94,15 +96,9 @@ impl BitInstruction {
         let bit = bit.into();
 
         match opcode_id & 0b11000111 {
-            0x40 => {
-                Some(reg.map(|reg| BitRegister(reg, bit), BitAddrHL(bit)))
-            }
-            0x80 => {
-                Some(reg.map(|reg| ResRegister(reg, bit), ResAddrHL(bit)))
-            }
-            0xC0 => {
-                Some(reg.map(|reg| SetRegister(reg, bit), SetAddrHL(bit)))
-            }
+            0x40 => Some(reg.map(|reg| BitRegister(reg, bit), BitAddrHL(bit))),
+            0x80 => Some(reg.map(|reg| ResRegister(reg, bit), ResAddrHL(bit))),
+            0xC0 => Some(reg.map(|reg| SetRegister(reg, bit), SetAddrHL(bit))),
             _ => None,
         }
     }
@@ -110,7 +106,12 @@ impl BitInstruction {
     fn test_bit(byte: u8, target_bit: TargetBit, carry: bool) -> SetFlags {
         let mask = target_bit.get_mask();
         let zero = byte & mask == 0;
-        SetFlags { zero, substract: false, half_carry: true, carry }
+        SetFlags {
+            zero,
+            substract: false,
+            half_carry: true,
+            carry,
+        }
     }
 
     pub fn execute(self, cpu: &mut Cpu) {
@@ -126,35 +127,35 @@ impl BitInstruction {
                 let carry = cpu.get_flag(Flags::Carry);
                 let flags = Self::test_bit(value, bit, carry);
                 cpu.set_flags(flags);
-            },
+            }
             BitInstruction::BitAddrHL(bit) => {
                 let value = cpu.get_at_hl();
                 let carry = cpu.get_flag(Flags::Carry);
                 let flags = Self::test_bit(value, bit, carry);
                 cpu.set_flags(flags);
-            },
+            }
             BitInstruction::SetRegister(reg, bit) => {
                 let reg = cpu.get_reg_mut(reg);
                 let mask = bit.get_mask();
                 *reg |= mask;
-            },
+            }
             BitInstruction::SetAddrHL(bit) => {
                 let mut value = cpu.get_at_hl();
                 let mask = bit.get_mask();
                 value |= mask;
                 cpu.put_at_hl(value);
-            },
+            }
             BitInstruction::ResRegister(reg, bit) => {
                 let reg = cpu.get_reg_mut(reg);
                 let mask = bit.get_mask();
                 *reg &= !mask;
-            },
+            }
             BitInstruction::ResAddrHL(bit) => {
                 let mut value = cpu.get_at_hl();
                 let mask = bit.get_mask();
                 value &= !mask;
                 cpu.put_at_hl(value);
-            },
+            }
         }
     }
 }

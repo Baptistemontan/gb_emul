@@ -1,5 +1,8 @@
 use crate::{
-    cpu::{registers::{Register, Flags, SetFlags}, Cpu},
+    cpu::{
+        registers::{Flags, Register, SetFlags},
+        Cpu,
+    },
     map_fetch_register,
 };
 
@@ -175,126 +178,125 @@ impl RotateShiftInstruction {
         }
     }
 
-    
     pub fn execute(self, cpu: &mut Cpu) {
         // all opcodes are either not prefixed and just operate on A and take 4 cycles
         // or are prefixed and take 8 / 16 cycles
-        // so no cycle adjust needed 
+        // so no cycle adjust needed
         match self {
             RotateShiftInstruction::RotateLeftCarryA => {
                 let value = cpu.get_reg_a();
                 let (value, flags) = Self::rotate_carry(value, true);
                 cpu.put_reg_a(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateLeftA => {
                 let value = cpu.get_reg_a();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::rotate(value, carry, true);
                 cpu.put_reg_a(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateRightCarryA => {
                 let value = cpu.get_reg_a();
                 let (value, flags) = Self::rotate_carry(value, false);
                 cpu.put_reg_a(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateRightA => {
                 let value = cpu.get_reg_a();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::rotate(value, carry, false);
                 cpu.put_reg_a(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateLeftCarryRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let (value, flags) = Self::rotate_carry(value, true);
                 cpu.put_reg(reg, value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateLeftCarryAddrHL => {
                 let value = cpu.get_at_hl();
                 let (value, flags) = Self::rotate_carry(value, true);
                 cpu.put_at_hl(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateLeftRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::rotate(value, carry, true);
                 cpu.put_reg(reg, value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateLeftAddrHL => {
                 let value = cpu.get_at_hl();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::rotate(value, carry, true);
                 cpu.put_at_hl(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateRightCarryRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let (value, flags) = Self::rotate_carry(value, false);
                 cpu.put_reg(reg, value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateRightCarryAddrHL => {
                 let value = cpu.get_at_hl();
                 let (value, flags) = Self::rotate_carry(value, false);
                 cpu.put_at_hl(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateRightRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::rotate(value, carry, false);
                 cpu.put_reg(reg, value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::RotateRightAddrHL => {
                 let value = cpu.get_at_hl();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::rotate(value, carry, false);
                 cpu.put_at_hl(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::ShiftLeftRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let (value, flags) = Self::shift(value, false, true);
                 cpu.put_reg(reg, value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::ShiftLeftAddrHL => {
                 let value = cpu.get_at_hl();
                 let (value, flags) = Self::shift(value, false, true);
                 cpu.put_at_hl(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::ShiftRightRegisterSigned(reg) => {
                 let value = cpu.get_reg(reg);
                 let (value, flags) = Self::shift(value, true, false);
                 cpu.put_reg(reg, value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::ShiftRightAddrHLSigned => {
                 let value = cpu.get_at_hl();
                 let (value, flags) = Self::shift(value, true, false);
                 cpu.put_at_hl(value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::ShiftRightRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let (value, flags) = Self::shift(value, false, false);
                 cpu.put_reg(reg, value);
                 cpu.set_flags(flags);
-            },
+            }
             RotateShiftInstruction::ShiftRightAddrHL => {
                 let value = cpu.get_at_hl();
                 let (value, flags) = Self::shift(value, false, false);
                 cpu.put_at_hl(value);
                 cpu.set_flags(flags);
-            },
+            }
         }
     }
 
@@ -336,7 +338,6 @@ impl RotateShiftInstruction {
             ..Default::default()
         };
         (value, flags)
-
     }
 
     fn shift(n: u8, signed: bool, left: bool) -> (u8, SetFlags) {
@@ -345,13 +346,13 @@ impl RotateShiftInstruction {
         } else {
             n & 0b00000001 != 0
         };
-        
+
         let value = match (signed, left) {
             (true, false) => {
                 let signed = i8::from_be_bytes([n]);
                 let [shifted] = i8::to_be_bytes(signed >> 1);
                 shifted
-            },
+            }
             (false, false) => n >> 1,
             (_, true) => n << 1,
         };

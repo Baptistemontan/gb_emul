@@ -69,8 +69,8 @@ impl Bank {
             }
             Memory::INTERNAL_RAM_TWO_START..=Memory::INTERNAL_RAM_TWO_END => {
                 Some((Bank::InternalRamTwo, addr - Memory::INTERNAL_RAM_TWO_START))
-            },
-            0xFFFF => None
+            }
+            0xFFFF => None,
         }
     }
 }
@@ -90,11 +90,13 @@ impl Memory {
     const INTERRUPT_ENABLE_REGISTER_START: u16 = 0xFFFF;
 
     const ROM_BANK_SIZE: usize = (Self::SWITCHABLE_ROM_BANK_START - Self::ROM_BANK_START) as usize;
-    const SWITCHABLE_ROM_BANK_SIZE: usize = (Self::VRAM_START - Self::SWITCHABLE_ROM_BANK_START) as usize;
+    const SWITCHABLE_ROM_BANK_SIZE: usize =
+        (Self::VRAM_START - Self::SWITCHABLE_ROM_BANK_START) as usize;
     const VRAM_SIZE: usize = (Self::SWITCHABLE_RAM_BANK_START - Self::VRAM_START) as usize;
     const SWITCHABLE_RAM_BANK_SIZE: usize =
         (Self::INTERNAL_RAM_START - Self::SWITCHABLE_RAM_BANK_START) as usize;
-    const INTERNAL_RAM_SIZE: usize = (Self::INTERNAL_RAM_ECHO_START - Self::INTERNAL_RAM_START) as usize;
+    const INTERNAL_RAM_SIZE: usize =
+        (Self::INTERNAL_RAM_ECHO_START - Self::INTERNAL_RAM_START) as usize;
     const INTERNAL_RAM_ECHO_SIZE_U16: u16 = Self::OAM_START - Self::INTERNAL_RAM_ECHO_START;
     const INTERNAL_RAM_ECHO_SIZE: usize = Self::INTERNAL_RAM_ECHO_SIZE_U16 as usize;
     const OAM_SIZE: usize = (Self::EMPTY_START - Self::OAM_START) as usize;

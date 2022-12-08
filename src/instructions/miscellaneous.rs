@@ -1,5 +1,8 @@
 use crate::{
-    cpu::{registers::{Register, Flags}, Cpu},
+    cpu::{
+        registers::{Flags, Register},
+        Cpu,
+    },
     map_fetch_register,
 };
 
@@ -98,9 +101,7 @@ impl MiscInstruction {
             0x37 => Some(SetCarry),
             0x00 => Some(Nop),
             0x76 => Some(Halt),
-            0x10 if cpu.advance() == 0x00 => {
-                Some(Stop)
-            },
+            0x10 if cpu.advance() == 0x00 => Some(Stop),
             0xF3 => Some(DisableInterrupt),
             0xFB => Some(EnableInterrupt),
             _ => None,
@@ -122,7 +123,7 @@ impl MiscInstruction {
                 let value = cpu.get_reg(reg);
                 let value = Self::swap(value);
                 cpu.put_reg(reg, value);
-            },
+            }
             MiscInstruction::SwapAddrHL => {
                 // 1 wide opcode and 2 memory access, but 4 cycles
                 // so need to put one there
@@ -130,30 +131,30 @@ impl MiscInstruction {
                 let value = cpu.get_at_hl();
                 let value = Self::swap(value);
                 cpu.put_at_hl(value);
-            },
+            }
             MiscInstruction::DecimalAdjustA => todo!(),
             MiscInstruction::ComplementA => {
                 let value = cpu.get_reg_a();
                 cpu.put_reg_a(!value);
-            },
+            }
             MiscInstruction::ComplementCarry => {
                 let carry = cpu.get_flag(Flags::Carry);
                 cpu.set_flag_to(Flags::Carry, !carry);
-            },
+            }
             MiscInstruction::SetCarry => {
                 cpu.set_flag(Flags::Carry);
-            },
+            }
             MiscInstruction::Nop => {
                 // litteraly do nothing
-            },
+            }
             MiscInstruction::Halt => todo!(),
             MiscInstruction::Stop => todo!(),
             MiscInstruction::DisableInterrupt => {
                 cpu.disable_interrupts();
-            },
+            }
             MiscInstruction::EnableInterrupt => {
                 cpu.enable_interrupts();
-            },
+            }
         }
     }
 }

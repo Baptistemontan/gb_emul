@@ -1,7 +1,7 @@
 use std::ops::{AddAssign, SubAssign};
 
 use crate::cpu::{
-    registers::{LongRegister, Register, Registers, SetFlags, Flags},
+    registers::{Flags, LongRegister, Register, Registers, SetFlags},
     Cpu,
 };
 
@@ -303,59 +303,59 @@ impl ArithmeticInstruction {
                 let (value, flags) = Self::add(a, n);
                 cpu.set_flags(flags);
                 cpu.put_reg_a(value);
-            },
+            }
             ArithmeticInstruction::AddRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::AddImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::AddAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::AddImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::SubImmediate(n) => {
                 let a = cpu.get_reg_a();
                 let (value, flags) = Self::sub(a, n);
                 cpu.set_flags(flags);
                 cpu.put_reg_a(value);
-            },
+            }
             ArithmeticInstruction::SubRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::SubImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::SubAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::SubImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::AddCarryImmediate(n) => {
                 let a = cpu.get_reg_a();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::add_carry(a, n, carry);
                 cpu.set_flags(flags);
                 cpu.put_reg_a(value);
-            },
+            }
             ArithmeticInstruction::AddCarryRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::AddCarryImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::AddCarryAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::AddCarryImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::SubCarryImmediate(n) => {
                 let a = cpu.get_reg_a();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::sub_carry(a, n, carry);
                 cpu.set_flags(flags);
                 cpu.put_reg_a(value);
-            },
+            }
             ArithmeticInstruction::SubCarryRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::SubCarryImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::SubCarryAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::SubCarryImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::AndImmediate(n) => {
                 let a = cpu.get_reg_a();
                 let result = a & n;
@@ -363,19 +363,19 @@ impl ArithmeticInstruction {
                     zero: result == 0,
                     substract: false,
                     half_carry: true,
-                    carry: false
+                    carry: false,
                 };
                 cpu.put_reg_a(result);
                 cpu.set_flags(flags);
-            },
+            }
             ArithmeticInstruction::AndRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::AndImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::AndAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::AndImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::OrImmediate(n) => {
                 let a = cpu.get_reg_a();
                 let result = a | n;
@@ -385,15 +385,15 @@ impl ArithmeticInstruction {
                 };
                 cpu.put_reg_a(result);
                 cpu.set_flags(flags);
-            },
+            }
             ArithmeticInstruction::OrRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::OrImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::OrAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::OrImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::XorImmediate(n) => {
                 let a = cpu.get_reg_a();
                 let result = a ^ n;
@@ -403,71 +403,70 @@ impl ArithmeticInstruction {
                 };
                 cpu.put_reg_a(result);
                 cpu.set_flags(flags);
-            },
+            }
             ArithmeticInstruction::XorRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::XorImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::XorAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::XorImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::CmpImmediate(n) => {
                 let a = cpu.get_reg_a();
                 let (_, flags) = Self::sub(a, n);
                 cpu.set_flags(flags);
-            },
+            }
             ArithmeticInstruction::CmpRegister(reg) => {
                 let n = cpu.get_reg(reg);
                 ArithmeticInstruction::CmpImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::CmpAddrHL => {
                 let n = cpu.get_at_hl();
                 ArithmeticInstruction::CmpImmediate(n).execute(cpu);
-            },
+            }
             ArithmeticInstruction::IncRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::inc(value, carry);
                 cpu.set_flags(flags);
                 cpu.put_reg(reg, value);
-            },
+            }
             ArithmeticInstruction::IncAddrHL => {
                 let value = cpu.get_at_hl();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::inc(value, carry);
                 cpu.set_flags(flags);
                 cpu.put_at_hl(value);
-            },
+            }
             ArithmeticInstruction::DecRegister(reg) => {
                 let value = cpu.get_reg(reg);
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::dec(value, carry);
                 cpu.set_flags(flags);
                 cpu.put_reg(reg, value);
-            },
+            }
             ArithmeticInstruction::DecAddrHL => {
                 let value = cpu.get_at_hl();
                 let carry = cpu.get_flag(Flags::Carry);
                 let (value, flags) = Self::dec(value, carry);
                 cpu.set_flags(flags);
                 cpu.put_at_hl(value);
-            },
+            }
             ArithmeticInstruction::AddHL(lr) => {
                 todo!()
-            },
+            }
             ArithmeticInstruction::AddSPImmediate(n) => {
                 todo!()
-            },
+            }
             ArithmeticInstruction::IncLongRegister(reg) => {
                 cpu.get_long_reg(reg).add_assign(1);
-            },
+            }
             ArithmeticInstruction::DecLongRegister(reg) => {
                 cpu.get_long_reg(reg).sub_assign(1);
-            },
+            }
         }
     }
-
 
     fn add(a: u8, b: u8) -> (u8, SetFlags) {
         let half_carry = a & 0x0F + b & 0x0F > 0x0F;
@@ -477,7 +476,7 @@ impl ArithmeticInstruction {
             half_carry,
             carry,
             zero,
-            substract: false
+            substract: false,
         };
         (value, flags)
     }
@@ -485,9 +484,16 @@ impl ArithmeticInstruction {
     fn add_carry(a: u8, b: u8, carry: bool) -> (u8, SetFlags) {
         if carry {
             match (a, b) {
-                (0xFF, 0xFF) => (0xFF, SetFlags { carry: true, half_carry: true , ..Default::default()}),
+                (0xFF, 0xFF) => (
+                    0xFF,
+                    SetFlags {
+                        carry: true,
+                        half_carry: true,
+                        ..Default::default()
+                    },
+                ),
                 (0xFF, x) | (x, 0xFF) => Self::add(x + 1, 0xFF),
-                _ => Self::add(a + 1, b)
+                _ => Self::add(a + 1, b),
             }
         } else {
             Self::add(a, b)
@@ -513,5 +519,4 @@ impl ArithmeticInstruction {
         flags.carry = carry;
         (value, flags)
     }
-
 }

@@ -1,5 +1,5 @@
 use crate::cpu::{
-    registers::{Flags, Registers, SetFlags, LongRegister},
+    registers::{Flags, LongRegister, Registers, SetFlags},
     Cpu,
 };
 
@@ -112,7 +112,6 @@ pub enum ControlFlowInstruction {
 }
 
 impl ControlFlowInstruction {
-
     pub fn fetch(cpu: &mut Cpu, opcode: u8) -> Option<Self> {
         use ControlFlowInstruction::*;
         let cc = ((opcode & 0b00011000) >> 3).into();
@@ -121,7 +120,10 @@ impl ControlFlowInstruction {
             x if x & 0b11100111 == 0xC2 => Some(JumpImmediateCondition(cc, cpu.advance_long())),
             0xE9 => Some(JumpAddrHL),
             0x18 => Some(JumpImmediateRelative(i8::from_be_bytes([cpu.advance()]))),
-            x if x & 0b11100111 == 0x20 => Some(JumpRelativeCondition(cc, i8::from_be_bytes([cpu.advance()]))),
+            x if x & 0b11100111 == 0x20 => Some(JumpRelativeCondition(
+                cc,
+                i8::from_be_bytes([cpu.advance()]),
+            )),
             0xCD => Some(CallImmediate(cpu.advance_long())),
             x if x & 0b11100111 == 0xC4 => Some(CallImmediateCondition(cc, cpu.advance_long())),
             x if x & 0b11000111 == 0b11000111 => Some(Reset(x & 0b00111000)),
@@ -146,53 +148,57 @@ impl ControlFlowInstruction {
             ControlFlowInstruction::JumpImmediate(addr) => {
                 cpu.set_pc(addr);
                 cpu.cycle(); // 3 cycle fetch, but 4 cycle instruction
-            },
+            }
             ControlFlowInstruction::JumpImmediateCondition(cc, addr) => {
                 Self::exec_cc(ControlFlowInstruction::JumpImmediate(addr), cc, cpu);
-            },
+            }
             ControlFlowInstruction::JumpAddrHL => {
                 let addr = cpu.get_long_reg(LongRegister::HL);
                 cpu.set_pc(addr);
-            },
+            }
             ControlFlowInstruction::JumpImmediateRelative(delta) => {
                 cpu.move_by(delta.into());
                 cpu.cycle();
-            },
+            }
             ControlFlowInstruction::JumpRelativeCondition(cc, delta) => {
-                Self::exec_cc(ControlFlowInstruction::JumpImmediateRelative(delta), cc, cpu);
-            },
+                Self::exec_cc(
+                    ControlFlowInstruction::JumpImmediateRelative(delta),
+                    cc,
+                    cpu,
+                );
+            }
             ControlFlowInstruction::CallImmediate(addr) => {
                 // 3 width instruction + 2 Write, need one more cycle.
                 cpu.cycle();
                 let pc = cpu.get_pc();
                 cpu.push_stack(pc);
                 cpu.set_pc(addr);
-            },
+            }
             ControlFlowInstruction::CallImmediateCondition(cc, addr) => {
                 Self::exec_cc(ControlFlowInstruction::CallImmediate(addr), cc, cpu);
-            },
+            }
             ControlFlowInstruction::Reset(addr) => {
                 // turn this instruction into a call
                 // 2 less cycle happen during fetch
                 // so cycle count is good
                 ControlFlowInstruction::CallImmediate(addr.into()).execute(cpu);
-            },
+            }
             ControlFlowInstruction::Return => {
                 let addr = cpu.pop_stack();
                 ControlFlowInstruction::JumpImmediate(addr).execute(cpu);
-            },
+            }
             ControlFlowInstruction::ReturnCondition(cc) => {
                 // weird, but if condition not met take 2 cycles, but opcode is 1 wide
-                // cycle count is good on jump, but on NOP still lack 1 cycle 
+                // cycle count is good on jump, but on NOP still lack 1 cycle
                 let jumped = Self::exec_cc(ControlFlowInstruction::Return, cc, cpu);
                 if !jumped {
                     cpu.cycle();
                 }
-            },
+            }
             ControlFlowInstruction::ReturnEnableInterrupt => {
                 ControlFlowInstruction::Return.execute(cpu);
                 cpu.enable_interrupts();
-            },
+            }
         }
     }
 }

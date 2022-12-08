@@ -1,9 +1,12 @@
 use crate::memory::Memory;
 
-use self::{registers::{Flags, LongRegister, Register, Registers, SetFlags}, cyclic::Cyclic};
+use self::{
+    cyclic::Cyclic,
+    registers::{Flags, LongRegister, Register, Registers, SetFlags},
+};
 
-pub mod registers;
 pub mod cyclic;
+pub mod registers;
 
 #[derive(Debug, Default)]
 pub struct Cpu {
@@ -13,7 +16,6 @@ pub struct Cpu {
 }
 
 impl Cpu {
-
     /// Cycles: 4
     pub fn current_byte(&mut self) -> u8 {
         let addr = self.get_pc();
@@ -66,7 +68,7 @@ impl Cpu {
     pub fn get_reg_a(&self) -> u8 {
         self.get_reg(Register::A)
     }
-    
+
     pub fn put_reg_a(&mut self, value: u8) {
         self.put_reg(Register::A, value);
     }
