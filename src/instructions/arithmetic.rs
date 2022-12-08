@@ -1,4 +1,9 @@
-use crate::cpu::{registers::{LongRegister, Register, Registers}, Cpu};
+use std::ops::{AddAssign, SubAssign};
+
+use crate::cpu::{
+    registers::{LongRegister, Register, Registers, SetFlags, Flags},
+    Cpu,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArithmeticInstruction {
@@ -208,7 +213,7 @@ impl ArithmeticInstruction {
             (true, Register::F) => ArithmeticInstruction::AddCarryAddrHL,
             (false, Register::F) => ArithmeticInstruction::AddAddrHL,
             (true, reg) => ArithmeticInstruction::AddCarryRegister(reg),
-            (false, reg) => ArithmeticInstruction::AddRegister(reg)
+            (false, reg) => ArithmeticInstruction::AddRegister(reg),
         }
     }
     fn fetch_sub(opcode: u8) -> Self {
@@ -219,10 +224,10 @@ impl ArithmeticInstruction {
             (true, Register::F) => ArithmeticInstruction::SubCarryAddrHL,
             (false, Register::F) => ArithmeticInstruction::SubAddrHL,
             (true, reg) => ArithmeticInstruction::SubCarryRegister(reg),
-            (false, reg) => ArithmeticInstruction::SubRegister(reg)
+            (false, reg) => ArithmeticInstruction::SubRegister(reg),
         }
     }
-    fn fetch_bitwise(opcode: u8) -> Self{
+    fn fetch_bitwise(opcode: u8) -> Self {
         use ArithmeticInstruction::*;
         let i = opcode & 0b00000111;
         let op = (opcode & 0b00011000) >> 3;
@@ -269,105 +274,244 @@ impl ArithmeticInstruction {
         ArithmeticInstruction::AddHL(reg)
     }
 
-    pub fn fetch(cpu: &Cpu, opcode: u8) -> Option<Self> {
+    pub fn fetch(cpu: &mut Cpu, opcode: u8) -> Option<Self> {
         use ArithmeticInstruction::*;
-
-        let n = cpu.get_relative(1);
         match opcode {
             0x80..=0x8F => Some(Self::fetch_add(opcode)),
             0x90..=0x9F => Some(Self::fetch_sub(opcode)),
-            0xC6 => Some(AddImmediate(n)),
-            0xCE => Some(AddCarryImmediate(n)),
-            0xD6 => Some(SubImmediate(n)),
-            0xDE => Some(SubCarryImmediate(n)),
-            0xE6 => Some(AndImmediate(n)),
-            0xE8 => Some(AddSPImmediate(n)),
-            0xEE => Some(XorImmediate(n)),
-            0xF6 => Some(OrImmediate(n)),
-            0xFE => Some(CmpImmediate(n)),
+            0xC6 => Some(AddImmediate(cpu.advance())),
+            0xCE => Some(AddCarryImmediate(cpu.advance())),
+            0xD6 => Some(SubImmediate(cpu.advance())),
+            0xDE => Some(SubCarryImmediate(cpu.advance())),
+            0xE6 => Some(AndImmediate(cpu.advance())),
+            0xE8 => Some(AddSPImmediate(cpu.advance())),
+            0xEE => Some(XorImmediate(cpu.advance())),
+            0xF6 => Some(OrImmediate(cpu.advance())),
+            0xFE => Some(CmpImmediate(cpu.advance())),
             0xA0..=0xBF => Some(Self::fetch_bitwise(opcode)),
             x if x & 0b11000110 == 0x04 => Some(Self::fetch_inc_dec(opcode)),
             x if x & 0b11000111 == 0x03 => Some(Self::fetch_inc_dec_long(opcode)),
             x if x & 0b11001111 == 0x09 => Some(Self::fetch_add_hl_long(opcode)),
-            _ => None
-        }
-    }
-    
-    pub const fn size(self) -> u16 {
-        match self {
-            ArithmeticInstruction::AddImmediate(_) => 2,
-            ArithmeticInstruction::AddRegister(_) => 1,
-            ArithmeticInstruction::AddAddrHL => 1,
-            ArithmeticInstruction::SubImmediate(_) => 2,
-            ArithmeticInstruction::SubRegister(_) => 1,
-            ArithmeticInstruction::SubAddrHL => 1,
-            ArithmeticInstruction::AddCarryImmediate(_) => 2,
-            ArithmeticInstruction::AddCarryRegister(_) => 1,
-            ArithmeticInstruction::AddCarryAddrHL => 1,
-            ArithmeticInstruction::SubCarryImmediate(_) => 2,
-            ArithmeticInstruction::SubCarryRegister(_) => 1,
-            ArithmeticInstruction::SubCarryAddrHL => 1,
-            ArithmeticInstruction::AndImmediate(_) => 2,
-            ArithmeticInstruction::AndRegister(_) => 1,
-            ArithmeticInstruction::AndAddrHL => 1,
-            ArithmeticInstruction::OrImmediate(_) => 2,
-            ArithmeticInstruction::OrRegister(_) => 1,
-            ArithmeticInstruction::OrAddrHL => 1,
-            ArithmeticInstruction::XorImmediate(_) => 2,
-            ArithmeticInstruction::XorRegister(_) => 1,
-            ArithmeticInstruction::XorAddrHL => 1,
-            ArithmeticInstruction::CmpImmediate(_) => 2,
-            ArithmeticInstruction::CmpRegister(_) => 1,
-            ArithmeticInstruction::CmpAddrHL => 1,
-            ArithmeticInstruction::IncRegister(_) => 1,
-            ArithmeticInstruction::IncAddrHL => 1,
-            ArithmeticInstruction::DecRegister(_) => 1,
-            ArithmeticInstruction::DecAddrHL => 1,
-            ArithmeticInstruction::AddHL(_) => 1,
-            ArithmeticInstruction::AddSPImmediate(_) => 1,
-            ArithmeticInstruction::IncLongRegister(_) => 1,
-            ArithmeticInstruction::DecLongRegister(_) => 1,
-        }
-    }
-
-    pub const fn cycles(self) -> u8 {
-        match self {
-            ArithmeticInstruction::AddImmediate(_) => 8,
-            ArithmeticInstruction::AddRegister(_) => 4,
-            ArithmeticInstruction::AddAddrHL => 8,
-            ArithmeticInstruction::SubImmediate(_) => 8,
-            ArithmeticInstruction::SubRegister(_) => 4,
-            ArithmeticInstruction::SubAddrHL => 8,
-            ArithmeticInstruction::AddCarryImmediate(_) => 8,
-            ArithmeticInstruction::AddCarryRegister(_) => 4,
-            ArithmeticInstruction::AddCarryAddrHL => 8,
-            ArithmeticInstruction::SubCarryImmediate(_) => 8,
-            ArithmeticInstruction::SubCarryRegister(_) => 4,
-            ArithmeticInstruction::SubCarryAddrHL => 8,
-            ArithmeticInstruction::AndImmediate(_) => 8,
-            ArithmeticInstruction::AndRegister(_) => 4,
-            ArithmeticInstruction::AndAddrHL => 8,
-            ArithmeticInstruction::OrImmediate(_) => 8,
-            ArithmeticInstruction::OrRegister(_) => 4,
-            ArithmeticInstruction::OrAddrHL => 8,
-            ArithmeticInstruction::XorImmediate(_) => 8,
-            ArithmeticInstruction::XorRegister(_) => 4,
-            ArithmeticInstruction::XorAddrHL => 8,
-            ArithmeticInstruction::CmpImmediate(_) => 8,
-            ArithmeticInstruction::CmpRegister(_) => 4,
-            ArithmeticInstruction::CmpAddrHL => 8,
-            ArithmeticInstruction::IncRegister(_) => 4,
-            ArithmeticInstruction::IncAddrHL => 12,
-            ArithmeticInstruction::DecRegister(_) => 4,
-            ArithmeticInstruction::DecAddrHL => 12,
-            ArithmeticInstruction::AddHL(_) => 8,
-            ArithmeticInstruction::AddSPImmediate(_) => 16,
-            ArithmeticInstruction::IncLongRegister(_) => 8,
-            ArithmeticInstruction::DecLongRegister(_) => 8,
+            _ => None,
         }
     }
 
     pub fn execute(self, cpu: &mut Cpu) {
+        match self {
+            ArithmeticInstruction::AddImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let (value, flags) = Self::add(a, n);
+                cpu.set_flags(flags);
+                cpu.put_reg_a(value);
+            },
+            ArithmeticInstruction::AddRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::AddImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::AddAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::AddImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::SubImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let (value, flags) = Self::sub(a, n);
+                cpu.set_flags(flags);
+                cpu.put_reg_a(value);
+            },
+            ArithmeticInstruction::SubRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::SubImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::SubAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::SubImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::AddCarryImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let carry = cpu.get_flag(Flags::Carry);
+                let (value, flags) = Self::add_carry(a, n, carry);
+                cpu.set_flags(flags);
+                cpu.put_reg_a(value);
+            },
+            ArithmeticInstruction::AddCarryRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::AddCarryImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::AddCarryAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::AddCarryImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::SubCarryImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let carry = cpu.get_flag(Flags::Carry);
+                let (value, flags) = Self::sub_carry(a, n, carry);
+                cpu.set_flags(flags);
+                cpu.put_reg_a(value);
+            },
+            ArithmeticInstruction::SubCarryRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::SubCarryImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::SubCarryAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::SubCarryImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::AndImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let result = a & n;
+                let flags = SetFlags {
+                    zero: result == 0,
+                    substract: false,
+                    half_carry: true,
+                    carry: false
+                };
+                cpu.put_reg_a(result);
+                cpu.set_flags(flags);
+            },
+            ArithmeticInstruction::AndRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::AndImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::AndAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::AndImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::OrImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let result = a | n;
+                let flags = SetFlags {
+                    zero: result == 0,
+                    ..Default::default()
+                };
+                cpu.put_reg_a(result);
+                cpu.set_flags(flags);
+            },
+            ArithmeticInstruction::OrRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::OrImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::OrAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::OrImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::XorImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let result = a ^ n;
+                let flags = SetFlags {
+                    zero: result == 0,
+                    ..Default::default()
+                };
+                cpu.put_reg_a(result);
+                cpu.set_flags(flags);
+            },
+            ArithmeticInstruction::XorRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::XorImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::XorAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::XorImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::CmpImmediate(n) => {
+                let a = cpu.get_reg_a();
+                let (_, flags) = Self::sub(a, n);
+                cpu.set_flags(flags);
+            },
+            ArithmeticInstruction::CmpRegister(reg) => {
+                let n = cpu.get_reg(reg);
+                ArithmeticInstruction::CmpImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::CmpAddrHL => {
+                let n = cpu.get_at_hl();
+                ArithmeticInstruction::CmpImmediate(n).execute(cpu);
+            },
+            ArithmeticInstruction::IncRegister(reg) => {
+                let value = cpu.get_reg(reg);
+                let carry = cpu.get_flag(Flags::Carry);
+                let (value, flags) = Self::inc(value, carry);
+                cpu.set_flags(flags);
+                cpu.put_reg(reg, value);
+            },
+            ArithmeticInstruction::IncAddrHL => {
+                let value = cpu.get_at_hl();
+                let carry = cpu.get_flag(Flags::Carry);
+                let (value, flags) = Self::inc(value, carry);
+                cpu.set_flags(flags);
+                cpu.put_at_hl(value);
+            },
+            ArithmeticInstruction::DecRegister(reg) => {
+                let value = cpu.get_reg(reg);
+                let carry = cpu.get_flag(Flags::Carry);
+                let (value, flags) = Self::dec(value, carry);
+                cpu.set_flags(flags);
+                cpu.put_reg(reg, value);
+            },
+            ArithmeticInstruction::DecAddrHL => {
+                let value = cpu.get_at_hl();
+                let carry = cpu.get_flag(Flags::Carry);
+                let (value, flags) = Self::dec(value, carry);
+                cpu.set_flags(flags);
+                cpu.put_at_hl(value);
+            },
+            ArithmeticInstruction::AddHL(lr) => {
+                todo!()
+            },
+            ArithmeticInstruction::AddSPImmediate(n) => {
+                todo!()
+            },
+            ArithmeticInstruction::IncLongRegister(reg) => {
+                cpu.get_long_reg(reg).add_assign(1);
+            },
+            ArithmeticInstruction::DecLongRegister(reg) => {
+                cpu.get_long_reg(reg).sub_assign(1);
+            },
+        }
+    }
+
+
+    fn add(a: u8, b: u8) -> (u8, SetFlags) {
+        let half_carry = a & 0x0F + b & 0x0F > 0x0F;
+        let (value, carry) = a.overflowing_add(b);
+        let zero = value == 0;
+        let flags = SetFlags {
+            half_carry,
+            carry,
+            zero,
+            substract: false
+        };
+        (value, flags)
+    }
+
+    fn add_carry(a: u8, b: u8, carry: bool) -> (u8, SetFlags) {
+        if carry {
+            match (a, b) {
+                (0xFF, 0xFF) => (0xFF, SetFlags { carry: true, half_carry: true , ..Default::default()}),
+                (0xFF, x) | (x, 0xFF) => Self::add(x + 1, 0xFF),
+                _ => Self::add(a + 1, b)
+            }
+        } else {
+            Self::add(a, b)
+        }
+    }
+
+    fn sub(a: u8, b: u8) -> (u8, SetFlags) {
         todo!()
     }
+
+    fn sub_carry(a: u8, b: u8, carry: bool) -> (u8, SetFlags) {
+        todo!()
+    }
+
+    fn inc(a: u8, carry: bool) -> (u8, SetFlags) {
+        let (value, mut flags) = Self::add(a, 1);
+        flags.carry = carry;
+        (value, flags)
+    }
+
+    fn dec(a: u8, carry: bool) -> (u8, SetFlags) {
+        let (value, mut flags) = Self::sub(a, 1);
+        flags.carry = carry;
+        (value, flags)
+    }
+
 }

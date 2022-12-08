@@ -1,4 +1,7 @@
-use crate::{cpu::{registers::Register, Cpu}, map_fetch_register};
+use crate::{
+    cpu::{registers::{Register, Flags}, Cpu},
+    map_fetch_register,
+};
 
 use super::FetchRegister;
 
@@ -81,13 +84,12 @@ pub enum MiscInstruction {
 }
 
 impl MiscInstruction {
-
     pub fn fetch_prefixed(_: &Cpu, opcode_id: u8, reg: FetchRegister) -> Option<Self> {
         use MiscInstruction::*;
         (opcode_id == 0x30).then(|| map_fetch_register!(reg, SwapRegister, SwapAddrHL))
     }
 
-    pub fn fetch(cpu: &Cpu, opcode: u8) -> Option<Self> {
+    pub fn fetch(cpu: &mut Cpu, opcode: u8) -> Option<Self> {
         use MiscInstruction::*;
         match opcode {
             0x27 => Some(DecimalAdjustA),
@@ -96,38 +98,62 @@ impl MiscInstruction {
             0x37 => Some(SetCarry),
             0x00 => Some(Nop),
             0x76 => Some(Halt),
-            0x10 if cpu.get_relative(1) == 0x00 => Some(Stop),
+            0x10 if cpu.advance() == 0x00 => {
+                Some(Stop)
+            },
             0xF3 => Some(DisableInterrupt),
             0xFB => Some(EnableInterrupt),
-            _ => None
+            _ => None,
         }
     }
 
-    pub const fn size(self) -> u16 {
-        match self {
-            MiscInstruction::Stop => 2,
-            _ => 1,
-        }
-    }
-
-    pub const fn cycles(self) -> u8 {
-        match self {
-            MiscInstruction::SwapRegister(_) => 8,
-            MiscInstruction::SwapAddrHL => 16,
-            MiscInstruction::DecimalAdjustA => 4,
-            MiscInstruction::ComplementA => 4,
-            MiscInstruction::ComplementCarry => 4,
-            MiscInstruction::SetCarry => 4,
-            MiscInstruction::Nop => 4,
-            MiscInstruction::Halt => 4,
-            MiscInstruction::Stop => 4,
-            MiscInstruction::DisableInterrupt => 4,
-            MiscInstruction::EnableInterrupt => 4,
-        }
+    fn swap(value: u8) -> u8 {
+        let lower = value & 0x0F;
+        let upper = value & 0xF0;
+        lower << 4 | upper >> 4
     }
 
     pub fn execute(self, cpu: &mut Cpu) {
-        todo!()
+        match self {
+            MiscInstruction::SwapRegister(reg) => {
+                // 1 wide opcode and no memory access, but 2 cycles
+                // so need to put one there
+                cpu.cycle();
+                let value = cpu.get_reg(reg);
+                let value = Self::swap(value);
+                cpu.put_reg(reg, value);
+            },
+            MiscInstruction::SwapAddrHL => {
+                // 1 wide opcode and 2 memory access, but 4 cycles
+                // so need to put one there
+                cpu.cycle();
+                let value = cpu.get_at_hl();
+                let value = Self::swap(value);
+                cpu.put_at_hl(value);
+            },
+            MiscInstruction::DecimalAdjustA => todo!(),
+            MiscInstruction::ComplementA => {
+                let value = cpu.get_reg_a();
+                cpu.put_reg_a(!value);
+            },
+            MiscInstruction::ComplementCarry => {
+                let carry = cpu.get_flag(Flags::Carry);
+                cpu.set_flag_to(Flags::Carry, !carry);
+            },
+            MiscInstruction::SetCarry => {
+                cpu.set_flag(Flags::Carry);
+            },
+            MiscInstruction::Nop => {
+                // litteraly do nothing
+            },
+            MiscInstruction::Halt => todo!(),
+            MiscInstruction::Stop => todo!(),
+            MiscInstruction::DisableInterrupt => {
+                cpu.disable_interrupts();
+            },
+            MiscInstruction::EnableInterrupt => {
+                cpu.enable_interrupts();
+            },
+        }
     }
 }
-

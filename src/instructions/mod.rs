@@ -1,4 +1,7 @@
-use crate::cpu::{Cpu, registers::{LongRegister, Register, Registers}};
+use crate::cpu::{
+    registers::{LongRegister, Register, Registers},
+    Cpu,
+};
 
 use self::{
     arithmetic::ArithmeticInstruction, bit::BitInstruction, control_flow::ControlFlowInstruction,
@@ -25,7 +28,7 @@ pub enum Instruction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FetchRegister {
     Register(Register),
-    AddrHL
+    AddrHL,
 }
 
 impl From<u8> for FetchRegister {
@@ -41,22 +44,21 @@ impl From<u8> for FetchRegister {
 
 #[macro_export]
 /// Made to do the same thing as FetchRegister::map,
-/// but usable in a const context 
+/// but usable in a const context
 /// When const trait impl stabilized ? :(
 macro_rules! map_fetch_register {
-    ($reg:ident, $if_reg:path, $if_hl:ident) => {
-        {
-            match $reg {
-                FetchRegister::Register(reg) => $if_reg(reg),
-                FetchRegister::AddrHL => $if_hl,
-            }
+    ($reg:ident, $if_reg:path, $if_hl:ident) => {{
+        match $reg {
+            FetchRegister::Register(reg) => $if_reg(reg),
+            FetchRegister::AddrHL => $if_hl,
         }
-    };
+    }};
 }
 
 impl FetchRegister {
-    pub fn map<F, T>(self, if_reg: F, if_hl: T) -> T 
-        where F: FnOnce(Register) -> T,
+    pub fn map<F, T>(self, if_reg: F, if_hl: T) -> T
+    where
+        F: FnOnce(Register) -> T,
     {
         match self {
             FetchRegister::Register(reg) => if_reg(reg),
@@ -66,43 +68,32 @@ impl FetchRegister {
 }
 
 impl Instruction {
-    pub fn fetch(cpu: &Cpu) -> Option<Self> {
-        let opcode = cpu.current_byte();
+    pub fn fetch(cpu: &mut Cpu) -> Option<Self> {
+        let opcode = cpu.advance();
         if opcode == 0xCB {
-            let opcode = cpu.get_relative(1);
+            let opcode = cpu.advance();
             let reg = (opcode & 0b00000111).into();
             let opcode_id = opcode & 0b11111000;
-            MiscInstruction::fetch_prefixed(cpu, opcode_id, reg).map(Instruction::Misc)
-                .or_else(|| RotateShiftInstruction::fetch_prefixed(cpu, opcode_id, reg).map(Instruction::RotateShift))
-                .or_else(|| BitInstruction::fetch_prefixed(cpu, opcode_id, reg).map(Instruction::Bit))
+            MiscInstruction::fetch_prefixed(cpu, opcode_id, reg)
+                .map(Instruction::Misc)
+                .or_else(|| {
+                    RotateShiftInstruction::fetch_prefixed(cpu, opcode_id, reg)
+                        .map(Instruction::RotateShift)
+                })
+                .or_else(|| {
+                    BitInstruction::fetch_prefixed(cpu, opcode_id, reg).map(Instruction::Bit)
+                })
         } else {
-            LoadInstruction::fetch(cpu, opcode).map(Instruction::Load)
+            LoadInstruction::fetch(cpu, opcode)
+                .map(Instruction::Load)
                 .or_else(|| ArithmeticInstruction::fetch(cpu, opcode).map(Instruction::Arithmetic))
                 .or_else(|| MiscInstruction::fetch(cpu, opcode).map(Instruction::Misc))
-                .or_else(|| RotateShiftInstruction::fetch(cpu, opcode).map(Instruction::RotateShift))
-                .or_else(|| ControlFlowInstruction::fetch(cpu, opcode).map(Instruction::ControlFlow))
-        }
-    }
-
-    pub const fn size(self) -> u16 {
-        match self {
-            Instruction::Load(instruction) => instruction.size(),
-            Instruction::Arithmetic(instruction) => instruction.size(),
-            Instruction::Misc(instruction) => instruction.size(),
-            Instruction::RotateShift(instruction) => instruction.size(),
-            Instruction::Bit(instruction) => instruction.size(),
-            Instruction::ControlFlow(instruction) => instruction.size(),
-        }
-    }
-
-    pub const fn cycles(self) -> u8 {
-        match self {
-            Instruction::Load(instruction) => instruction.cycles(),
-            Instruction::Arithmetic(instruction) => instruction.cycles(),
-            Instruction::Misc(instruction) => instruction.cycles(),
-            Instruction::RotateShift(instruction) => instruction.cycles(),
-            Instruction::Bit(instruction) => instruction.cycles(),
-            Instruction::ControlFlow(instruction) => instruction.cycles(),
+                .or_else(|| {
+                    RotateShiftInstruction::fetch(cpu, opcode).map(Instruction::RotateShift)
+                })
+                .or_else(|| {
+                    ControlFlowInstruction::fetch(cpu, opcode).map(Instruction::ControlFlow)
+                })
         }
     }
 
@@ -129,33 +120,41 @@ mod tests {
         let mut cpu = Cpu::opcode_filled();
         for i in 0..=0xFF {
             print!("{:#X} : ", cpu.current_byte());
-            let instruction = Instruction::fetch(&cpu);
-            cpu.advance_by(1);
             if i == 0xCB {
+                cpu.advance();
                 println!("PREFIX CB");
                 continue;
             }
+            let instruction = Instruction::fetch(&mut cpu);
             if let Some(inst) = instruction {
-                println!("{:?} | Cycles: {} | Size: {}", inst, inst.cycles(), inst.size());
+                println!(
+                    "{:?}",
+                    inst,
+                );
             } else {
                 println!("Unknown");
             }
         }
-        
+
         for _ in 0..=0xFF {
             print!("CB {:#X} : ", cpu.get_relative(1));
-            let instruction = Instruction::fetch(&cpu);
-            cpu.advance_by(2);
+            let instruction = Instruction::fetch(&mut cpu);
             if let Some(inst) = instruction {
-                println!("{:?} | Cycles: {} | Size: {}", inst, inst.cycles(), inst.size());
+                println!(
+                    "{:?}",
+                    inst,
+                );
             } else {
                 println!("Unknown");
             }
         }
 
         print!("0x10 0x00 : ");
-        if let Some(inst) = Instruction::fetch(&cpu) {
-            println!("{:?} | Cycles: {} | Size: {}", inst, inst.cycles(), inst.size());
+        if let Some(inst) = Instruction::fetch(&mut cpu) {
+            println!(
+                "{:?}",
+                inst,
+            );
         } else {
             println!("Unknown");
         }

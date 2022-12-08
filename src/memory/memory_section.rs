@@ -10,12 +10,12 @@ impl<const N: usize> MemorySection<N> {
         MemorySection { mem: [0; N] }
     }
 
-    pub fn get(&self, addr: usize) -> u8 {
-        self.mem[addr]
+    pub fn get(&self, addr: u16) -> u8 {
+        self.mem[addr as usize]
     }
 
-    pub fn set(&mut self, addr: usize, value: u8) {
-        self.mem[addr] = value;
+    pub fn set(&mut self, addr: u16, value: u8) {
+        self.mem[addr as usize] = value;
     }
 }
 

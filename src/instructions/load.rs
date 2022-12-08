@@ -1,4 +1,7 @@
-use crate::cpu::{registers::{LongRegister, Register, Registers}, Cpu};
+use crate::cpu::{
+    registers::{LongRegister, Register, Registers, SetFlags},
+    Cpu,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoadInstruction {
@@ -146,7 +149,7 @@ pub enum LoadInstruction {
     /// C - Set or reset according to operation.
     ///
     /// Cycles: 12
-    LoadFromSPPlusnIntoHL(u8),
+    LoadFromSPPlusnIntoHL(i8),
     /// LD (nn), SP
     ///
     /// Load to the absolute address specified by the 16-bit operand nn, data from the 16-bit SP register.
@@ -175,7 +178,6 @@ pub enum LoadInstruction {
 }
 
 impl LoadInstruction {
-
     fn fetch_load_r1_r2(opcode: u8) -> Option<Self> {
         use Register::*;
         // kind of bad, but F signifies (HL) lol
@@ -185,7 +187,7 @@ impl LoadInstruction {
             (F, F) => None, // 0x76, this is HALT instruction
             (F, r) => Some(LoadInstruction::LoadIntoHLAddr(r)),
             (r, F) => Some(LoadInstruction::LoadFromHLAddr(r)),
-            (r1, r2) => Some(LoadInstruction::LoadRegister(r1, r2))
+            (r1, r2) => Some(LoadInstruction::LoadRegister(r1, r2)),
         }
     }
 
@@ -213,144 +215,177 @@ impl LoadInstruction {
         }
         lr
     }
+    
+    fn add_delta_to_addr(addr: u16, delta: i8) -> (u16, SetFlags) {
+        let neg = delta.is_negative();
+        let [delta_byte] = i8::to_be_bytes(delta);
+        let delta_byte: u16 = delta_byte.into();
+        let [delta] = i8::to_be_bytes(delta.abs());
+        let delta: u16 = delta.into();
+        let result = if neg {
+            addr - delta
+        } else {
+            addr + delta
+        };
 
-    pub fn fetch(cpu: &Cpu, opcode: u8) -> Option<Self> {
+        let carry = (addr ^ delta_byte ^ result) & 0x0100 == 0x0100;
+        let half_carry = (addr ^ delta_byte ^ result) & 0x0010 == 0x0010;
+
+        let flags = SetFlags {
+            carry,
+            half_carry,
+            ..Default::default()
+        };
+
+        (result, flags)
+    }
+
+    pub fn fetch(cpu: &mut Cpu, opcode: u8) -> Option<Self> {
         use LoadInstruction::*;
 
         match opcode {
-            0x08 => Some(LoadSPIntoAddrnn(cpu.get_next_long())),
+            0x08 => Some(LoadSPIntoAddrnn(cpu.advance_long())),
             0x22 => Some(LoadFromAIntoAddrHLInc),
             0x2A => Some(LoadFromAddrHLIntoAInc),
             0x32 => Some(LoadFromAIntoAddrHLDec),
             0x3A => Some(LoadFromAddrHLIntoADec),
             0x40..=0x7F => Self::fetch_load_r1_r2(opcode),
-            0xE0 => Some(LoadFromAIntoAddrn(cpu.get_relative(1))),
+            0xE0 => Some(LoadFromAIntoAddrn(cpu.advance())),
             0xE2 => Some(LoadIntoAddrCFromA),
-            0xEA => Some(LoadIntoAddrnnFromA(cpu.get_next_long())),
-            0xF0 => Some(LoadFromAddrnIntoA(cpu.get_relative(1))),
+            0xEA => Some(LoadIntoAddrnnFromA(cpu.advance_long())),
+            0xF0 => Some(LoadFromAddrnIntoA(cpu.advance())),
             0xF2 => Some(LoadFromAddrCIntoA),
             0xF9 => Some(LoadFromHLIntoSP),
-            0xF8 => Some(LoadFromSPPlusnIntoHL(cpu.get_relative(1))),
-            0xFA => Some(LoadIntoAFromAddrnn(cpu.get_next_long())),
+            0xF8 => {
+                let byte = cpu.advance();
+                Some(LoadFromSPPlusnIntoHL(i8::from_be_bytes([byte])))
+            },
+            0xFA => Some(LoadIntoAFromAddrnn(cpu.advance_long())),
             x if x & 0b11001111 == 0x0A => Some(LoadIntoAFromAddr(Self::fetch_long_register(x))),
             x if x & 0b11001111 == 0x02 => Some(LoadIntoAddrFromA(Self::fetch_long_register(x))),
-            x if x & 0b11000111 == 0x06 => Some(Self::fetch_load_immediate(x, cpu.get_relative(1))),
-            x if x & 0b11001111 == 0x01 => Some(LoadImmediateLong(Self::fetch_long_register(x), cpu.get_next_long())),
+            x if x & 0b11000111 == 0x06 => Some(Self::fetch_load_immediate(x, cpu.advance())),
+            x if x & 0b11001111 == 0x01 => Some(LoadImmediateLong(
+                Self::fetch_long_register(x),
+                cpu.advance_long(),
+            )),
             x if x & 0b11001111 == 0xC5 => Some(Push(Self::fetch_long_register(x))),
             x if x & 0b11001111 == 0xC1 => Some(Pop(Self::fetch_long_register(x))),
-            _ => None 
-        }
-    }
-
-    pub const fn size(self) -> u16 {
-        match self {
-            LoadInstruction::LoadImmediate(_, _) => 2,
-            LoadInstruction::LoadRegister(_, _) => 1,
-            LoadInstruction::LoadFromHLAddr(_) => 1,
-            LoadInstruction::LoadIntoHLAddr(_) => 1,
-            LoadInstruction::LoadIntoHLAddrn(_) => 2,
-            LoadInstruction::LoadIntoAFromAddr(_) => 1,
-            LoadInstruction::LoadIntoAFromAddrnn(_) => 3,
-            LoadInstruction::LoadIntoAddrFromA(_) => 1,
-            LoadInstruction::LoadIntoAddrnnFromA(_) => 3,
-            LoadInstruction::LoadFromAddrCIntoA => 1,
-            LoadInstruction::LoadIntoAddrCFromA => 1,
-            LoadInstruction::LoadFromAddrHLIntoADec => 1,
-            LoadInstruction::LoadFromAIntoAddrHLDec => 1,
-            LoadInstruction::LoadFromAddrHLIntoAInc => 1,
-            LoadInstruction::LoadFromAIntoAddrHLInc => 1,
-            LoadInstruction::LoadFromAIntoAddrn(_) => 2,
-            LoadInstruction::LoadFromAddrnIntoA(_) => 2,
-            LoadInstruction::LoadImmediateLong(_, _) => 1,
-            LoadInstruction::LoadFromHLIntoSP => 1,
-            LoadInstruction::LoadFromSPPlusnIntoHL(_) => 2,
-            LoadInstruction::LoadSPIntoAddrnn(_) => 3,
-            LoadInstruction::Push(_) => 1,
-            LoadInstruction::Pop(_) => 1,
-        }
-    }
-
-    pub const fn cycles(self) -> u8 {
-        match self {
-            LoadInstruction::LoadImmediate(_, _) => 8,
-            LoadInstruction::LoadRegister(_, _) => 4,
-            LoadInstruction::LoadFromHLAddr(_) => 8,
-            LoadInstruction::LoadIntoHLAddr(_) => 8,
-            LoadInstruction::LoadIntoHLAddrn(_) => 12,
-            LoadInstruction::LoadIntoAFromAddr(_) => 8,
-            LoadInstruction::LoadIntoAFromAddrnn(_) => 16,
-            LoadInstruction::LoadIntoAddrFromA(_) => 8,
-            LoadInstruction::LoadIntoAddrnnFromA(_) => 16,
-            LoadInstruction::LoadFromAddrCIntoA => 8,
-            LoadInstruction::LoadIntoAddrCFromA => 8,
-            LoadInstruction::LoadFromAddrHLIntoADec => 8,
-            LoadInstruction::LoadFromAIntoAddrHLDec => 8,
-            LoadInstruction::LoadFromAddrHLIntoAInc => 8,
-            LoadInstruction::LoadFromAIntoAddrHLInc => 8,
-            LoadInstruction::LoadFromAIntoAddrn(_) => 12,
-            LoadInstruction::LoadFromAddrnIntoA(_) => 12,
-            LoadInstruction::LoadImmediateLong(_, _) => 12,
-            LoadInstruction::LoadFromHLIntoSP => 8,
-            LoadInstruction::LoadFromSPPlusnIntoHL(_) => 12,
-            LoadInstruction::LoadSPIntoAddrnn(_) => 20,
-            LoadInstruction::Push(_) => 16,
-            LoadInstruction::Pop(_) => 12,
+            _ => None,
         }
     }
 
     pub fn execute(self, cpu: &mut Cpu) {
         match self {
-            LoadInstruction::LoadImmediate(r, n) => todo!(),
-            LoadInstruction::LoadRegister(r1, r2) => todo!(),
-            LoadInstruction::LoadFromHLAddr(r) => todo!(),
-            LoadInstruction::LoadIntoHLAddr(r) => todo!(),
-            LoadInstruction::LoadIntoHLAddrn(n) => todo!(),
-            LoadInstruction::LoadIntoAFromAddr(lr) => todo!(),
-            LoadInstruction::LoadIntoAFromAddrnn(nn) => todo!(),
-            LoadInstruction::LoadIntoAddrFromA(lr) => todo!(),
-            LoadInstruction::LoadIntoAddrnnFromA(nn) => todo!(),
-            LoadInstruction::LoadFromAddrCIntoA => todo!(),
-            LoadInstruction::LoadIntoAddrCFromA => todo!(),
-            LoadInstruction::LoadFromAddrHLIntoADec => todo!(),
-            LoadInstruction::LoadFromAIntoAddrHLDec => todo!(),
-            LoadInstruction::LoadFromAddrHLIntoAInc => todo!(),
-            LoadInstruction::LoadFromAIntoAddrHLInc => todo!(),
-            LoadInstruction::LoadFromAIntoAddrn(n) => todo!(),
-            LoadInstruction::LoadFromAddrnIntoA(n) => todo!(),
-            LoadInstruction::LoadImmediateLong(lr, nn) => todo!(),
-            LoadInstruction::LoadFromHLIntoSP => todo!(),
-            LoadInstruction::LoadFromSPPlusnIntoHL(n) => todo!(),
-            LoadInstruction::LoadSPIntoAddrnn(nn) => todo!(),
-            LoadInstruction::Push(lr) => todo!(),
-            LoadInstruction::Pop(lr) => todo!(),
+            LoadInstruction::LoadImmediate(reg, n) => {
+                cpu.put_reg(reg, n);
+            },
+            LoadInstruction::LoadRegister(r1, r2) => {
+                cpu.put_reg(r1, cpu.get_reg(r2));
+            },
+            LoadInstruction::LoadFromHLAddr(reg) => {
+                let value = cpu.get_at_hl();
+                cpu.put_reg(reg, value);
+            },
+            LoadInstruction::LoadIntoHLAddr(reg) => {
+                let value = cpu.get_reg(reg);
+                cpu.put_at_hl(value);
+            },
+            LoadInstruction::LoadIntoHLAddrn(n) => {
+                cpu.put_at_hl(n);
+            },
+            LoadInstruction::LoadIntoAFromAddr(lr) => {
+                let addr = cpu.get_long_reg(lr);
+                let value = cpu.get_memory(addr);
+                cpu.put_reg(Register::A, value);
+            },
+            LoadInstruction::LoadIntoAFromAddrnn(addr) => {
+                let value = cpu.get_memory(addr);
+                cpu.put_reg(Register::A, value);
+            },
+            LoadInstruction::LoadIntoAddrFromA(lr) => {
+                let addr = cpu.get_long_reg(lr);
+                let value = cpu.get_reg_a();
+                cpu.put_memory(addr, value);
+            },
+            LoadInstruction::LoadIntoAddrnnFromA(addr) => {
+                let value = cpu.get_reg_a();
+                cpu.put_memory(addr, value);
+            },
+            LoadInstruction::LoadFromAddrCIntoA => {
+                let c_reg = cpu.get_reg(Register::C);
+                let addr = u16::from_be_bytes([0xFF, c_reg]);
+                let value = cpu.get_memory(addr);
+                cpu.put_reg_a(value);
+            },
+            LoadInstruction::LoadIntoAddrCFromA => {
+                let c_reg = cpu.get_reg(Register::C);
+                let addr = u16::from_be_bytes([0xFF, c_reg]);
+                let value = cpu.get_reg_a();
+                cpu.put_memory(addr, value);
+            },
+            LoadInstruction::LoadFromAddrHLIntoADec => {
+                let addr = cpu.get_long_reg(LongRegister::HL);
+                let value = cpu.get_memory(addr);
+                cpu.put_reg_a(value);
+                cpu.put_long_reg(LongRegister::HL, addr - 1);
+            },
+            LoadInstruction::LoadFromAIntoAddrHLDec => {
+                let addr = cpu.get_long_reg(LongRegister::HL);
+                let value = cpu.get_reg_a();
+                cpu.put_memory(addr, value);
+                cpu.put_long_reg(LongRegister::HL, addr - 1);
+            },
+            LoadInstruction::LoadFromAddrHLIntoAInc => {
+                let addr = cpu.get_long_reg(LongRegister::HL);
+                let value = cpu.get_memory(addr);
+                cpu.put_reg_a(value);
+                cpu.put_long_reg(LongRegister::HL, addr + 1);
+            },
+            LoadInstruction::LoadFromAIntoAddrHLInc => {
+                let addr = cpu.get_long_reg(LongRegister::HL);
+                let value = cpu.get_reg_a();
+                cpu.put_memory(addr, value);
+                cpu.put_long_reg(LongRegister::HL, addr + 1);
+            },
+            LoadInstruction::LoadFromAIntoAddrn(n) => {
+                let addr = u16::from_be_bytes([0xFF, n]);
+                let value = cpu.get_reg_a();
+                cpu.put_memory(addr, value);
+            },
+            LoadInstruction::LoadFromAddrnIntoA(n) => {
+                let addr = u16::from_be_bytes([0xFF, n]);
+                let value = cpu.get_memory(addr);
+                cpu.put_reg_a(value);
+            },
+            LoadInstruction::LoadImmediateLong(reg, value) => {
+                cpu.put_long_reg(reg, value);
+            },
+            LoadInstruction::LoadFromHLIntoSP => {
+                // 2 machine cycle but only one W/R, so need to explicitly cycle
+                cpu.cycle();
+                let value = cpu.get_long_reg(LongRegister::HL);
+                cpu.put_long_reg(LongRegister::SP, value);
+            }
+            LoadInstruction::LoadFromSPPlusnIntoHL(delta) => {
+                let sp = cpu.get_long_reg(LongRegister::SP);
+                let (value, flags) = Self::add_delta_to_addr(sp, delta);
+                cpu.set_flags(flags);
+                cpu.put_long_reg(LongRegister::HL, value);
+            },
+            LoadInstruction::LoadSPIntoAddrnn(addr) => {
+                let value = cpu.get_long_reg(LongRegister::SP);
+                cpu.put_long_at(addr, value);
+            },
+            LoadInstruction::Push(long_reg) => {
+                // 4 machine cycle but only 3 W/R, so need to explicitly cycle
+                cpu.cycle();
+                let value = cpu.get_long_reg(long_reg);
+                cpu.push_stack(value);
+            },
+            LoadInstruction::Pop(long_reg) => {
+                let value = cpu.pop_stack();
+                cpu.put_long_reg(long_reg, value);
+            },
         }
     }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use crate::cpu::{Cpu, registers::{Register, LongRegister, Registers}};
-
-    use super::LoadInstruction;
-
-    // #[test]
-    // /// cover 0x06 to 0x3E with step of 8
-    // fn test_fetch_load_immediate() {
-    //     fn test_opcode(cpu: &Cpu, reg: Register) {
-    //         let result = LoadInstruction::fetch(cpu);
-    //         let byte = cpu.get_relative(1);
-    //         assert_eq!(result,  Some(LoadInstruction::LoadImmediate(reg, byte)));
-    //     }
-    //     let mut cpu = Cpu::opcode_filled();
-    //     cpu.advance_by(0x06);
-    //     for i in 0..6 {
-    //         test_opcode(&cpu, Registers::REGISTERS[i]);
-    //         cpu.advance_by(0x08);
-    //     }
-    //     assert_eq!(LoadInstruction::fetch(&cpu), Some(LoadInstruction::LoadIntoHLAddrn(0x37)));
-    //     cpu.advance_by(0x08);
-    //     assert_eq!(LoadInstruction::fetch(&cpu), Some(LoadInstruction::LoadImmediate(Register::A, 0x3F)));
-    // }
-
 }

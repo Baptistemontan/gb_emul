@@ -1,4 +1,7 @@
-use crate::cpu::{registers::{Flags, Registers, SetFlags}, Cpu};
+use crate::cpu::{
+    registers::{Flags, Registers, SetFlags, LongRegister},
+    Cpu,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlFlowCondition {
@@ -15,7 +18,7 @@ impl From<u8> for ControlFlowCondition {
             0 => NotZero,
             1 => Zero,
             2 => NoCarry,
-            _ => Carry
+            _ => Carry,
         }
     }
 }
@@ -38,13 +41,13 @@ pub enum ControlFlowInstruction {
     ///
     /// Jump to address nn
     ///
-    /// Cycles: 12
+    /// Cycles: 16
     JumpImmediate(u16),
     /// JP cc, nn
     ///
     /// If the condition is true, jump to the specified address nn.
     ///
-    /// Cycles: 12
+    /// Cycles: 16/12
     JumpImmediateCondition(ControlFlowCondition, u16),
     /// JP (HL)
     ///
@@ -56,13 +59,13 @@ pub enum ControlFlowInstruction {
     ///
     /// Add n to the current address and jump to it.
     ///
-    /// Cycles: 8
+    /// Cycles: 12
     JumpImmediateRelative(i8),
     /// JR cc, n
     ///
     /// If the condition is true, add n to the current address and jump to it.
     ///
-    /// Cycles: 8
+    /// Cycles: 12/8
     JumpRelativeCondition(ControlFlowCondition, i8),
 
     // Calls
@@ -70,13 +73,13 @@ pub enum ControlFlowInstruction {
     ///
     /// Push address of next instruction onto stack and then jump to the specified address nn.
     ///
-    /// Cycles: 12
+    /// Cycles: 24
     CallImmediate(u16),
     /// CALL cc, nn
     ///
     /// If the condition is true, call the specified address nn.
     ///
-    /// Cycles: 12
+    /// Cycles: 24/12
     CallImmediateCondition(ControlFlowCondition, u16),
 
     // Restarts
@@ -84,7 +87,7 @@ pub enum ControlFlowInstruction {
     ///
     /// Push present address onto stack. Jump to address $0000 + n.
     ///
-    /// Cycles: 32
+    /// Cycles: 16
     Reset(u8),
 
     // Returns
@@ -92,82 +95,104 @@ pub enum ControlFlowInstruction {
     ///
     /// Pop two bytes from stack & jump to that address.
     ///
-    /// Cycles: 8
+    /// Cycles: 16
     Return,
     /// RET cc
     ///
     /// If the condition is true, return.
     ///
-    /// Cycles: 8
+    /// Cycles: 20/8
     ReturnCondition(ControlFlowCondition),
     /// RETI
     ///
     /// Return and enable interrupts.
     ///
-    /// Cycles: 8
+    /// Cycles: 16
     ReturnEnableInterrupt,
 }
 
 impl ControlFlowInstruction {
 
-    pub fn fetch(cpu: &Cpu, opcode: u8) -> Option<Self> {
+    pub fn fetch(cpu: &mut Cpu, opcode: u8) -> Option<Self> {
         use ControlFlowInstruction::*;
-        
-        let delta = cpu.get_relative(1);
-        let delta = i8::from_be_bytes([delta]);
-
-        let addr = cpu.get_next_long();
         let cc = ((opcode & 0b00011000) >> 3).into();
         match opcode {
-            0xC3 => Some(JumpImmediate(addr)),
-            x if x & 0b11100111 == 0xC2 => Some(JumpImmediateCondition(cc, addr)),
+            0xC3 => Some(JumpImmediate(cpu.advance_long())),
+            x if x & 0b11100111 == 0xC2 => Some(JumpImmediateCondition(cc, cpu.advance_long())),
             0xE9 => Some(JumpAddrHL),
-            0x18 => Some(JumpImmediateRelative(delta)),
-            x if x & 0b11100111 == 0x20 => Some(JumpRelativeCondition(cc, delta)),
-            0xCD => Some(CallImmediate(addr)),
-            x if x & 0b11100111 == 0xC4 => Some(CallImmediateCondition(cc, addr)),
+            0x18 => Some(JumpImmediateRelative(i8::from_be_bytes([cpu.advance()]))),
+            x if x & 0b11100111 == 0x20 => Some(JumpRelativeCondition(cc, i8::from_be_bytes([cpu.advance()]))),
+            0xCD => Some(CallImmediate(cpu.advance_long())),
+            x if x & 0b11100111 == 0xC4 => Some(CallImmediateCondition(cc, cpu.advance_long())),
             x if x & 0b11000111 == 0b11000111 => Some(Reset(x & 0b00111000)),
             0xC9 => Some(Return),
             x if x & 0b11100111 == 0xC0 => Some(ReturnCondition(cc)),
             0xD9 => Some(ReturnEnableInterrupt),
-            _ => None
+            _ => None,
         }
     }
 
-    pub const fn size(self) -> u16 {
-        match self {
-            ControlFlowInstruction::JumpImmediate(_) => 3,
-            ControlFlowInstruction::JumpImmediateCondition(_, _) => 3,
-            ControlFlowInstruction::JumpAddrHL => 1,
-            ControlFlowInstruction::JumpImmediateRelative(_) => 2,
-            ControlFlowInstruction::JumpRelativeCondition(_, _) => 2,
-            ControlFlowInstruction::CallImmediate(_) => 3,
-            ControlFlowInstruction::CallImmediateCondition(_, _) => 3,
-            ControlFlowInstruction::Reset(_) => 2,
-            ControlFlowInstruction::Return => 1,
-            ControlFlowInstruction::ReturnCondition(_) => 1,
-            ControlFlowInstruction::ReturnEnableInterrupt => 1,
+    fn exec_cc(this: Self, cc: ControlFlowCondition, cpu: &mut Cpu) -> bool {
+        let flags = cpu.get_flags();
+        let jump = cc.check_condition(flags);
+        if jump {
+            this.execute(cpu);
         }
-    }
-
-    pub const fn cycles(self) -> u8 {
-        match self {
-            ControlFlowInstruction::JumpImmediate(_) => 12,
-            ControlFlowInstruction::JumpImmediateCondition(_, _) => 12,
-            ControlFlowInstruction::JumpAddrHL => 4,
-            ControlFlowInstruction::JumpImmediateRelative(_) => 8,
-            ControlFlowInstruction::JumpRelativeCondition(_, _) => 8,
-            ControlFlowInstruction::CallImmediate(_) => 12,
-            ControlFlowInstruction::CallImmediateCondition(_, _) => 12,
-            ControlFlowInstruction::Reset(_) => 32,
-            ControlFlowInstruction::Return => 8,
-            ControlFlowInstruction::ReturnCondition(_) => 8,
-            ControlFlowInstruction::ReturnEnableInterrupt => 8,
-        }
+        jump
     }
 
     pub fn execute(self, cpu: &mut Cpu) {
-        todo!()
+        match self {
+            ControlFlowInstruction::JumpImmediate(addr) => {
+                cpu.set_pc(addr);
+                cpu.cycle(); // 3 cycle fetch, but 4 cycle instruction
+            },
+            ControlFlowInstruction::JumpImmediateCondition(cc, addr) => {
+                Self::exec_cc(ControlFlowInstruction::JumpImmediate(addr), cc, cpu);
+            },
+            ControlFlowInstruction::JumpAddrHL => {
+                let addr = cpu.get_long_reg(LongRegister::HL);
+                cpu.set_pc(addr);
+            },
+            ControlFlowInstruction::JumpImmediateRelative(delta) => {
+                cpu.move_by(delta.into());
+                cpu.cycle();
+            },
+            ControlFlowInstruction::JumpRelativeCondition(cc, delta) => {
+                Self::exec_cc(ControlFlowInstruction::JumpImmediateRelative(delta), cc, cpu);
+            },
+            ControlFlowInstruction::CallImmediate(addr) => {
+                // 3 width instruction + 2 Write, need one more cycle.
+                cpu.cycle();
+                let pc = cpu.get_pc();
+                cpu.push_stack(pc);
+                cpu.set_pc(addr);
+            },
+            ControlFlowInstruction::CallImmediateCondition(cc, addr) => {
+                Self::exec_cc(ControlFlowInstruction::CallImmediate(addr), cc, cpu);
+            },
+            ControlFlowInstruction::Reset(addr) => {
+                // turn this instruction into a call
+                // 2 less cycle happen during fetch
+                // so cycle count is good
+                ControlFlowInstruction::CallImmediate(addr.into()).execute(cpu);
+            },
+            ControlFlowInstruction::Return => {
+                let addr = cpu.pop_stack();
+                ControlFlowInstruction::JumpImmediate(addr).execute(cpu);
+            },
+            ControlFlowInstruction::ReturnCondition(cc) => {
+                // weird, but if condition not met take 2 cycles, but opcode is 1 wide
+                // cycle count is good on jump, but on NOP still lack 1 cycle 
+                let jumped = Self::exec_cc(ControlFlowInstruction::Return, cc, cpu);
+                if !jumped {
+                    cpu.cycle();
+                }
+            },
+            ControlFlowInstruction::ReturnEnableInterrupt => {
+                ControlFlowInstruction::Return.execute(cpu);
+                cpu.enable_interrupts();
+            },
+        }
     }
 }
-

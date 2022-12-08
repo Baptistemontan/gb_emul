@@ -1,3 +1,5 @@
+use std::ops::BitOr;
+
 use crate::help_traits::AccesBigEndianBytesU16;
 
 #[derive(Debug, Default)]
@@ -62,11 +64,29 @@ pub enum Flags {
     Carry,
 }
 
+#[derive(Debug, Default, Clone, Copy)]
 pub struct SetFlags {
     pub zero: bool,
     pub substract: bool,
     pub half_carry: bool,
     pub carry: bool,
+}
+
+impl BitOr for SetFlags {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        let zero = self.zero | rhs.zero;
+        let substract = self.substract | rhs.substract;
+        let half_carry = self.half_carry | rhs.half_carry;
+        let carry = self.carry | rhs.carry;
+        SetFlags {
+            zero,
+            substract,
+            half_carry,
+            carry
+        }
+    }
 }
 
 impl Flags {
@@ -122,9 +142,22 @@ impl Into<u8> for SetFlags {
 }
 
 impl Registers {
-
-    pub const REGISTERS: [Register; 8] = [Register::B, Register::C, Register::D, Register::E, Register::H, Register::L, Register::F, Register::A];
-    pub const LONG_REGISTERS: [LongRegister; 4] = [LongRegister::BC, LongRegister::DE, LongRegister::HL, LongRegister::SP];
+    pub const REGISTERS: [Register; 8] = [
+        Register::B,
+        Register::C,
+        Register::D,
+        Register::E,
+        Register::H,
+        Register::L,
+        Register::F,
+        Register::A,
+    ];
+    pub const LONG_REGISTERS: [LongRegister; 4] = [
+        LongRegister::BC,
+        LongRegister::DE,
+        LongRegister::HL,
+        LongRegister::SP,
+    ];
 
     pub fn get_mut(&mut self, reg: Register) -> &mut u8 {
         match reg {
@@ -187,6 +220,11 @@ impl Registers {
     pub fn get_flags(&self) -> SetFlags {
         let flags = self.get(Register::F);
         flags.into()
+    }
+
+    pub fn set_flags(&mut self, flags: SetFlags) {
+        let flags: u8 = flags.into();
+        self.af.set_low(flags); 
     }
 
     pub fn get_flag(&self, flag: Flags) -> bool {
